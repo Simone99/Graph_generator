@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GraphGeneratorWindow" parent="GtkApplicationWindow">
+    <property name="width-request">360</property>
+    <property name="height-request">360</property>
+    <property name="title" translatable="yes">Graph Generator</property>
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <child>
+            <object class="CustomDrawingArea" id="drawing_area">
+            </object>
+        </child>
+        <child>
+          <object class="GtkButton" id="save_button">
+            <property name="label">Save graph!</property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>
