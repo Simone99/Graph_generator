@@ -1,8 +1,8 @@
 use gtk::gio;
-use gtk::glib::once_cell::sync::OnceCell;
 use gtk::glib::{self, ParamSpec, Properties, Value};
 use gtk::prelude::ObjectExt;
 use gtk::subclass::prelude::*;
+use std::cell::OnceCell;
 
 #[derive(Properties, Default)]
 #[properties(wrapper_type = super::CustomDrawingArea)]

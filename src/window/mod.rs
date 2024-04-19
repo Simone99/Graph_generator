@@ -4,9 +4,8 @@ use glib::Object;
 use gtk::{
     gio::{self, Settings},
     glib,
-    prelude::SettingsExt,
+    prelude::{GtkWindowExt, SettingsExt},
     subclass::prelude::ObjectSubclassIsExt,
-    traits::GtkWindowExt,
     Application,
 };
 

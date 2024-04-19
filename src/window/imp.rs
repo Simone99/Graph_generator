@@ -6,12 +6,13 @@ use std::path::Path;
 
 use glib::subclass::InitializingObject;
 use gtk::gio::Settings;
-use gtk::glib::once_cell::sync::OnceCell;
-use gtk::glib::{clone, BindingFlags};
-use gtk::prelude::{DrawingAreaExtManual, ObjectExt, StaticType, ToValue};
+use gtk::glib::{clone, BindingFlags, Propagation};
+use gtk::prelude::{
+    ButtonExt, DrawingAreaExtManual, GestureDragExt, ObjectExt, ToValue, WidgetExt,
+};
 use gtk::subclass::prelude::*;
-use gtk::traits::{ButtonExt, GestureDragExt, WidgetExt};
-use gtk::{gio, glib, Button, CompositeTemplate, GestureDrag, Inhibit};
+use gtk::{gio, glib, Button, CompositeTemplate, GestureDrag};
+use std::cell::OnceCell;
 
 use crate::drawing::CustomDrawingArea;
 use crate::edge_object::{EdgeData, EdgeObject};
@@ -66,16 +67,16 @@ impl ObjectImpl for Window {
             .build();
         obj.bind_property("default-height", tmp, "content-height")
             .transform_to(move |_, height: i32| {
-                let edited_value = height - 40;
+                let edited_value = height - 71;
                 Some(edited_value.to_value())
             })
             .flags(BindingFlags::BIDIRECTIONAL | BindingFlags::SYNC_CREATE)
             .build();
 
         self.drawing_area
-            .set_vertices(gio::ListStore::new(NodeObject::static_type()));
+            .set_vertices(gio::ListStore::new::<NodeObject>());
         self.drawing_area
-            .set_edges(gio::ListStore::new(EdgeObject::static_type()));
+            .set_edges(gio::ListStore::new::<EdgeObject>());
         self.vertex_counter.set(0);
         self.drawing_area.set_draw_func(clone!(@weak self as win => move |_area, context, _width, _height|{
 
@@ -183,14 +184,14 @@ impl WidgetImpl for Window {}
 // Trait shared by all windows
 impl WindowImpl for Window {
     // Save window state right before the window will be closed
-    fn close_request(&self) -> Inhibit {
+    fn close_request(&self) -> Propagation {
         // Save window size
         self.obj()
             .save_window_size()
             .expect("Failed to save window state");
 
         // Don't inhibit the default handler
-        Inhibit(false)
+        self.parent_close_request()
     }
 }
 

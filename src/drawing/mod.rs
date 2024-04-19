@@ -3,7 +3,7 @@ mod imp;
 use glib::Object;
 use gtk::{
     gio, glib,
-    prelude::{Cast, ListModelExtManual, StaticType},
+    prelude::{Cast, ListModelExtManual},
 };
 
 use crate::{
@@ -68,9 +68,9 @@ impl CustomDrawingArea {
             .map(EdgeObject::from_edge_data)
             .collect();
 
-        let nodes = gio::ListStore::new(NodeObject::static_type());
+        let nodes = gio::ListStore::new::<NodeObject>();
         nodes.extend_from_slice(&nodes_to_extend);
-        let edges = gio::ListStore::new(EdgeObject::static_type());
+        let edges = gio::ListStore::new::<EdgeObject>();
         edges.extend_from_slice(&edges_to_extend);
 
         Self::new(nodes, edges)
