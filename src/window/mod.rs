@@ -2,11 +2,11 @@ mod imp;
 
 use glib::Object;
 use gtk::{
+    Application,
     gio::{self, Settings},
     glib,
     prelude::{GtkWindowExt, SettingsExt},
     subclass::prelude::ObjectSubclassIsExt,
-    Application,
 };
 
 use crate::APP_ID;

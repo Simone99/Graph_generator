@@ -1,17 +1,17 @@
 use std::cell::Cell;
 use std::f64::consts::PI;
-use std::fs::{remove_file, File};
+use std::fs::{File, remove_file};
 use std::io::Write;
 use std::path::Path;
 
 use glib::subclass::InitializingObject;
 use gtk::gio::Settings;
-use gtk::glib::{clone, BindingFlags, Propagation};
+use gtk::glib::{BindingFlags, Propagation, clone};
 use gtk::prelude::{
     ButtonExt, DrawingAreaExtManual, GestureDragExt, ObjectExt, ToValue, WidgetExt,
 };
 use gtk::subclass::prelude::*;
-use gtk::{gio, glib, Button, CompositeTemplate, GestureDrag};
+use gtk::{Button, CompositeTemplate, GestureDrag, gio, glib};
 use std::cell::OnceCell;
 
 use crate::drawing::CustomDrawingArea;
@@ -78,103 +78,166 @@ impl ObjectImpl for Window {
         self.drawing_area
             .set_edges(gio::ListStore::new::<EdgeObject>());
         self.vertex_counter.set(0);
-        self.drawing_area.set_draw_func(clone!(@weak self as win => move |_area, context, _width, _height|{
+        self.drawing_area.set_draw_func(clone!(
+            #[weak(rename_to = win)]
+            self,
+            move |_area, context, _width, _height| {
+                // Detect the current theme
+                let mode = dark_light::detect().unwrap_or(dark_light::Mode::Unspecified);
 
-            // Detect the current theme
-            let mode = dark_light::detect();
-
-            // Draw edges
-            let edge_collection = win.drawing_area.to_collection_data().edges_data;
-            let vertex_collection = win.drawing_area.to_collection_data().vertices_data;
-            for edge in &edge_collection {
-                let node = vertex_collection.clone().into_iter().find(|node| node.index == edge.u).unwrap();
-                let node1 = vertex_collection.clone().into_iter().find(|node| node.index == edge.v).unwrap();
-                context.set_line_width(7.5);
-                match mode {
-                    // Dark mode
-                    dark_light::Mode::Dark => {context.set_source_rgb(255.0, 255.0, 255.0)},
-                    // Light mode
-                    dark_light::Mode::Light => {context.set_source_rgb(0.0, 0.0, 0.0)},
-                    // Unspecified
-                    dark_light::Mode::Default => {context.set_source_rgb(255.0, 255.0, 255.0)},
+                // Draw edges
+                let edge_collection = win.drawing_area.to_collection_data().edges_data;
+                let vertex_collection = win.drawing_area.to_collection_data().vertices_data;
+                for edge in &edge_collection {
+                    let node = vertex_collection
+                        .clone()
+                        .into_iter()
+                        .find(|node| node.index == edge.u)
+                        .unwrap();
+                    let node1 = vertex_collection
+                        .clone()
+                        .into_iter()
+                        .find(|node| node.index == edge.v)
+                        .unwrap();
+                    context.set_line_width(7.5);
+                    match mode {
+                        // Dark mode
+                        dark_light::Mode::Dark => context.set_source_rgb(255.0, 255.0, 255.0),
+                        // Light mode
+                        dark_light::Mode::Light => context.set_source_rgb(0.0, 0.0, 0.0),
+                        // Unspecified
+                        dark_light::Mode::Unspecified => {
+                            context.set_source_rgb(255.0, 255.0, 255.0)
+                        }
+                    }
+                    context.move_to(node.x, node.y);
+                    context.line_to(node1.x, node1.y);
+                    context.stroke().expect("Unable to draw!");
                 }
-                context.move_to(node.x, node.y);
-                context.line_to(node1.x, node1.y);
-                context.stroke().expect("Unable to draw!");
+                // Draw vertices
+                for vertex in &vertex_collection {
+                    context.arc(vertex.x, vertex.y, 25.0, 0.0, 2.0 * PI);
+                    context.set_source_rgb(0.0, 0.0, 0.0);
+                    context.fill().expect("Unable to draw!");
+                    context.arc(vertex.x, vertex.y, 22.0, 0.0, 2.0 * PI);
+                    context.set_source_rgb(255.0, 255.0, 255.0);
+                    context.fill().expect("Unable to draw!");
+                    context.set_source_rgb(0.0, 0.0, 0.0);
+                    context.select_font_face(
+                        "Sans",
+                        gtk::cairo::FontSlant::Normal,
+                        gtk::cairo::FontWeight::Normal,
+                    );
+                    context.set_font_size(22.0);
+                    let extents = context
+                        .text_extents(vertex.index.to_string().as_str())
+                        .unwrap();
+                    let x = vertex.x - (extents.width() / 2.0 + extents.x_bearing());
+                    let y = vertex.y - (extents.height() / 2.0 + extents.y_bearing());
+                    context.move_to(x, y);
+                    context
+                        .show_text(vertex.index.to_string().as_str())
+                        .expect("Unable to show text!");
+                }
             }
-            // Draw vertices
-            for vertex in &vertex_collection {
-                context.arc(vertex.x, vertex.y, 25.0, 0.0, 2.0 * PI);
-                context.set_source_rgb(0.0, 0.0, 0.0);
-                context.fill().expect("Unable to draw!");
-                context.arc(vertex.x, vertex.y, 22.0, 0.0, 2.0 * PI);
-                context.set_source_rgb(255.0, 255.0, 255.0);
-                context.fill().expect("Unable to draw!");
-                context.set_source_rgb(0.0, 0.0, 0.0);
-                context.select_font_face("Sans", gtk::cairo::FontSlant::Normal, gtk::cairo::FontWeight::Normal);
-                context.set_font_size(22.0);
-                let extents = context.text_extents(vertex.index.to_string().as_str()).unwrap();
-                let x = vertex.x - (extents.width() / 2.0 + extents.x_bearing());
-                let y = vertex.y - (extents.height() / 2.0 + extents.y_bearing());
-                context.move_to(x, y);
-                context.show_text(vertex.index.to_string().as_str()).expect("Unable to show text!");    
-            }
-        }));
+        ));
 
         let gesture_controller = GestureDrag::builder().build();
-        gesture_controller.connect_drag_begin(
-            clone!(@weak self as win => move |_controller, x, y| {
+        gesture_controller.connect_drag_begin(clone!(
+            #[weak(rename_to = win)]
+            self,
+            move |_controller, x, y| {
                 win.drag_start_x.set(x);
                 win.drag_start_y.set(y);
-            }),
-        );
+            }
+        ));
 
-        gesture_controller.connect_drag_end(clone!(@weak self as win => move |_controller, x, y| {
-            // Check whether previous vertices have been already created, so probably the user wanted to create an edge
-            let x_start = win.drag_start_x.get();
-            let y_start = win.drag_start_y.get();
-            let x_end = x_start + x;
-            let y_end = y_start + y;
-            let mut vertex_exists = false;
-            let nodes = win.drawing_area.to_collection_data().vertices_data;
-            for node in &nodes {
-                if node.x - 25.0 <= x_start && x_start <= node.x + 25.0 && node.y - 25.0 <= y_start && y_start <= node.y + 25.0 {
-                    // The user probably want to create an edge, check if it released the drag on another vertex
-                    vertex_exists = true;
-                    for node1 in &nodes {
-                        if node.index != node1.index && node1.x - 25.0 <= x_end && x_end <= node1.x + 25.0 && node1.y - 25.0 <= y_end && y_end <= node1.y + 25.0 {
-                            win.drawing_area.edges().extend_from_slice(&[EdgeObject::from_edge_data(EdgeData{v: node.index, u: node1.index})]);
-                            win.drawing_area.queue_draw();
-                            return;
+        gesture_controller.connect_drag_end(clone!(
+            #[weak(rename_to = win)]
+            self,
+            move |_controller, x, y| {
+                // Check whether previous vertices have been already created, so probably the user wanted to create an edge
+                let x_start = win.drag_start_x.get();
+                let y_start = win.drag_start_y.get();
+                let x_end = x_start + x;
+                let y_end = y_start + y;
+                let mut vertex_exists = false;
+                let nodes = win.drawing_area.to_collection_data().vertices_data;
+                for node in &nodes {
+                    if node.x - 25.0 <= x_start
+                        && x_start <= node.x + 25.0
+                        && node.y - 25.0 <= y_start
+                        && y_start <= node.y + 25.0
+                    {
+                        // The user probably want to create an edge, check if it released the drag on another vertex
+                        vertex_exists = true;
+                        for node1 in &nodes {
+                            if node.index != node1.index
+                                && node1.x - 25.0 <= x_end
+                                && x_end <= node1.x + 25.0
+                                && node1.y - 25.0 <= y_end
+                                && y_end <= node1.y + 25.0
+                            {
+                                win.drawing_area.edges().extend_from_slice(&[
+                                    EdgeObject::from_edge_data(EdgeData {
+                                        v: node.index,
+                                        u: node1.index,
+                                    }),
+                                ]);
+                                win.drawing_area.queue_draw();
+                                return;
+                            }
                         }
                     }
                 }
+                if !vertex_exists {
+                    win.drawing_area
+                        .vertices()
+                        .extend_from_slice(&[NodeObject::from_node_data(NodeData {
+                            index: win.vertex_counter.get(),
+                            x: x_start,
+                            y: y_start,
+                        })]);
+                    win.vertex_counter.set(win.vertex_counter.get() + 1);
+                    win.drawing_area.queue_draw();
+                }
             }
-            if !vertex_exists {
-                win.drawing_area.vertices().extend_from_slice(&[NodeObject::from_node_data(NodeData { index: win.vertex_counter.get(), x: x_start, y: y_start })]);
-                win.vertex_counter.set(win.vertex_counter.get() + 1);
-                win.drawing_area.queue_draw();
-            }
-        }));
+        ));
 
         self.drawing_area.set_cursor_from_name(Some("pointer"));
         self.drawing_area.add_controller(gesture_controller);
-        self.save_button.connect_clicked(clone!(@weak self as win => move |_| {
-            if Path::new(OUTPUT_FILE_NAME).exists() {
-                remove_file(OUTPUT_FILE_NAME).expect("Error deleting the output file!");
+        self.save_button.connect_clicked(clone!(
+            #[weak(rename_to = win)]
+            self,
+            move |_| {
+                if Path::new(OUTPUT_FILE_NAME).exists() {
+                    remove_file(OUTPUT_FILE_NAME).expect("Error deleting the output file!");
+                }
+                let mut output_file =
+                    File::create(OUTPUT_FILE_NAME).expect("Error creating the output file!");
+                let mut collection = win.drawing_area.to_collection_data();
+                let vertices: Vec<u32> = collection
+                    .vertices_data
+                    .into_iter()
+                    .map(|node| node.index)
+                    .collect();
+                collection.edges_data.sort_by(|e, e1| e.v.cmp(&e1.v));
+                writeln!(
+                    output_file,
+                    "{}\n{}",
+                    vertices.len(),
+                    collection.edges_data.len()
+                )
+                .expect("Error writing to output file!");
+                for vertex in vertices {
+                    writeln!(output_file, "{}", vertex).expect("Error writing to output file!");
+                }
+                for edge in collection.edges_data {
+                    writeln!(output_file, "{} {}", edge.v, edge.u)
+                        .expect("Error writing to output file!");
+                }
             }
-            let mut output_file = File::create(OUTPUT_FILE_NAME).expect("Error creating the output file!");
-            let mut collection = win.drawing_area.to_collection_data();
-            let vertices: Vec<u32> = collection.vertices_data.into_iter().map(|node| node.index).collect();
-            collection.edges_data.sort_by(|e, e1| e.v.cmp(&e1.v));
-            writeln!(output_file, "{}\n{}", vertices.len(), collection.edges_data.len()).expect("Error writing to output file!");
-            for vertex in vertices {
-                writeln!(output_file, "{}", vertex).expect("Error writing to output file!");
-            }
-            for edge in collection.edges_data {
-                writeln!(output_file, "{} {}", edge.v, edge.u).expect("Error writing to output file!");
-            }
-        }));
+        ));
     }
 }
 
